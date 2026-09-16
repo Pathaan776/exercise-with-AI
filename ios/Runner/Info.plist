@@ -46,8 +46,8 @@
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>We need camera access to detect your exercise form in real time.</string>
+	<string>FitCheck uses the camera to check your exercise form in real time. Video is analysed on your device and never leaves it.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>We need photo access so you can pick an image for squat detection.</string>
+	<string>FitCheck reads a photo you choose so it can check your form. The photo is analysed on your device and never leaves it.</string>
 </dict>
 </plist>

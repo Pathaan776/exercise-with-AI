@@ -1,35 +1,45 @@
 import 'package:flutter/material.dart';
-import 'package:fitcheck/features/pose_detection/presentation/pages/pose_page.dart';
-import 'package:fitcheck/features/squats_detection/presentation/pages/squats/squats.dart';
-import 'package:fitcheck/features/squats_detection/presentation/pages/squats/squats_live.dart';
 
-class AppRouter {
-  static const pose = '/';
-  static const squats = '/squats';
-  static const squatsLive = '/squats/live';
+import 'package:fitcheck/features/shell/presentation/pages/app_shell.dart';
+import 'package:fitcheck/features/workout/domain/entities/exercise_type.dart';
+import 'package:fitcheck/features/workout/presentation/pages/exercise_detail_page.dart';
+import 'package:fitcheck/features/workout/presentation/pages/live_session_page.dart';
+
+abstract final class AppRouter {
+  static const home = '/';
+  static const exerciseDetail = '/exercise';
+  static const liveSession = '/exercise/live';
 
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
     switch (settings.name) {
-      case pose:
+      case exerciseDetail:
         return MaterialPageRoute<void>(
           settings: settings,
-          builder: (_) => const PosePage(),
+          builder: (_) =>
+              ExerciseDetailPage(exercise: _exerciseFrom(settings.arguments)),
         );
-      case squats:
+
+      case liveSession:
         return MaterialPageRoute<void>(
           settings: settings,
-          builder: (_) => const SquatsPage(),
+          builder: (_) =>
+              LiveSessionPage(exercise: _exerciseFrom(settings.arguments)),
         );
-      case squatsLive:
-        return MaterialPageRoute<void>(
-          settings: settings,
-          builder: (_) => const SquatsLivePage(),
-        );
+
+      case home:
       default:
         return MaterialPageRoute<void>(
           settings: settings,
-          builder: (_) => const SquatsPage(),
+          builder: (_) => const AppShell(),
         );
     }
+  }
+
+  /// Exercise routes are always pushed with an [ExerciseType] argument;
+  /// squats are the fallback if a caller forgets.
+  static ExerciseType _exerciseFrom(Object? arguments) {
+    if (arguments is ExerciseType) return arguments;
+    if (arguments is String) return ExerciseType.fromId(arguments);
+    return ExerciseType.squat;
   }
 }

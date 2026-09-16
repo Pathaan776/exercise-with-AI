@@ -1,59 +1,55 @@
-import 'package:fitcheck/core/utils/angle_calculator.dart';
-import 'package:fitcheck/features/pose_detection/data/datasource/pose_datasource.dart';
-import 'package:fitcheck/features/pose_detection/data/repository_impl/pose_repository_impl.dart';
-import 'package:fitcheck/features/pose_detection/domain/exercise/exercise_detector.dart';
-import 'package:fitcheck/features/pose_detection/domain/exercise/plank_detector.dart';
-import 'package:fitcheck/features/pose_detection/domain/exercise/pushup_detector.dart';
-import 'package:fitcheck/features/pose_detection/domain/exercise/squat_detector.dart';
-import 'package:fitcheck/features/pose_detection/domain/repository/pose_repository.dart';
-import 'package:fitcheck/features/pose_detection/domain/usecases/detect_pose_usecase.dart';
-import 'package:fitcheck/features/pose_detection/presentation/bloc/pose_bloc.dart';
-import 'package:fitcheck/features/squats_detection/data/datasource/pose_detection_client.dart';
-import 'package:fitcheck/features/squats_detection/domain/usecases/squat_analyzer.dart';
-import 'package:fitcheck/features/squats_detection/presentation/bloc/squats_bloc.dart';
-import 'package:fitcheck/features/squats_detection/presentation/bloc/squats_live_bloc.dart';
 import 'package:get_it/get_it.dart';
+
+import 'package:fitcheck/config/theme/theme_cubit.dart';
+import 'package:fitcheck/core/storage/app_preferences.dart';
+import 'package:fitcheck/features/profile/presentation/cubit/profile_cubit.dart';
+import 'package:fitcheck/features/workout/data/datasource/pose_detection_client.dart';
+import 'package:fitcheck/features/workout/domain/analyzers/analyzer_factory.dart';
+import 'package:fitcheck/features/workout/domain/entities/exercise_type.dart';
+import 'package:fitcheck/features/workout/presentation/bloc/image_analysis_bloc.dart';
+import 'package:fitcheck/features/workout/presentation/bloc/live_session_bloc.dart';
 
 final getIt = GetIt.instance;
 
 Future<void> configureDependencies() async {
-  getIt.registerLazySingleton<AngleCalculator>(() => const AngleCalculator());
+  getIt.registerSingleton<AppPreferences>(await AppPreferences.create());
 
-  getIt.registerLazySingleton<PoseDatasource>(() => MockPoseDatasource());
-  getIt.registerLazySingleton<PoseRepository>(
-    () => PoseRepositoryImpl(getIt()),
-  );
-  getIt.registerLazySingleton<DetectPoseUsecase>(
-    () => DetectPoseUsecase(getIt()),
-  );
+  // App-wide state. Both are singletons because the shell and every screen
+  // must observe the same instance.
+  getIt.registerLazySingleton<ThemeCubit>(() => ThemeCubit(getIt()));
+  getIt.registerLazySingleton<ProfileCubit>(() => ProfileCubit(getIt()));
 
-  getIt.registerLazySingleton<List<ExerciseDetector>>(
-    () => [
-      SquatDetector(angleCalculator: getIt()),
-      PushupDetector(angleCalculator: getIt()),
-      PlankDetector(angleCalculator: getIt()),
-    ],
-  );
-
-  getIt.registerFactory<PoseBloc>(
-    () => PoseBloc(
-      detectPoseUsecase: getIt(),
-      poseRepository: getIt(),
-      exerciseDetectors: getIt(),
-    ),
-  );
-
+  // ML Kit detectors are expensive to build, so one client is shared and
+  // closed in [disposeDependencies].
   getIt.registerLazySingleton<PoseDetectionClient>(() => PoseDetectionClient());
-  getIt.registerLazySingleton<SquatAnalyzer>(() => SquatAnalyzer());
+  getIt.registerLazySingleton<ExerciseAnalyzerFactory>(
+    () => const ExerciseAnalyzerFactory(),
+  );
 
-  getIt.registerFactory<SquatsBloc>(
-    () => SquatsBloc(
+  // Analyzers carry per-session rep state, so these blocs are factories keyed
+  // on the exercise being trained.
+  getIt.registerFactoryParam<LiveSessionBloc, ExerciseType, void>(
+    (exercise, _) => LiveSessionBloc(
       poseDetectionClient: getIt(),
-      squatAnalyzer: getIt(),
+      analyzerFactory: getIt(),
+      exercise: exercise,
     ),
   );
 
-  getIt.registerFactory<SquatsLiveBloc>(
-    () => SquatsLiveBloc(getIt(), getIt()),
+  getIt.registerFactoryParam<ImageAnalysisBloc, ExerciseType, void>(
+    (exercise, _) => ImageAnalysisBloc(
+      poseDetectionClient: getIt(),
+      analyzerFactory: getIt(),
+      exercise: exercise,
+    ),
   );
+}
+
+/// Releases the native ML Kit detectors. Call before tearing the app down or
+/// between tests so the platform side does not leak.
+Future<void> disposeDependencies() async {
+  if (getIt.isRegistered<PoseDetectionClient>()) {
+    await getIt<PoseDetectionClient>().dispose();
+  }
+  await getIt.reset();
 }
